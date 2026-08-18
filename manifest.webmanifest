@@ -1,0 +1,17 @@
+{
+  "name": "Тренажёр ОГЭ по математике",
+  "short_name": "Тренажёр ОГЭ",
+  "description": "Задания ОГЭ по математике 1-25 с проверкой ответов, пробные варианты и прогресс.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f1ea",
+  "theme_color": "#b5532a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
