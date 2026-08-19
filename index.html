@@ -583,8 +583,12 @@
   .tex .center,.tex .math-display{text-align:center;}
   .tex p{margin:0 0 .5em;}
   /* ---- размер рисунка задаётся атрибутами width/height ----
-     В data.js записан ОТОБРАЖАЕМЫЙ размер (уже с ограничениями 280x300),
-     а не натуральный. Здесь намеренно нет ни width, ни max-width в пикселях:
+     В data.js записан ОТОБРАЖАЕМЫЙ размер, а не натуральный: чертежи вынуты
+     из PDF и меряются в пунктах листа (113,39pt ≈ 151px на геометрию,
+     198,4pt ≈ 265px на числовую прямую) — это размер бумажного оригинала,
+     на экране подписи в нём уходят в 7-8px. Отображаемый размер считает
+     tools/figs.py по рамке для каждого задания, там же и таблица рамок.
+     Здесь намеренно нет ни width, ни max-width в пикселях:
      любое авторское width перебило бы значение из атрибута, и у незагруженной
      картинки не осталось бы ни одного определённого измерения — коробка
      схлопывалась бы в 0x0 и место под рисунок не резервировалось вовсе.
@@ -603,9 +607,21 @@
      рисунки останутся на месте, а не пропадут. */
   .cond .figwrap img.fig.pending{opacity:0;}
   .cond .figwrap img.fig{transition:opacity .3s var(--ease);}
-  /* графики производной шире прочих чертежей; width:100% определён,
-     поэтому резервирование работает и здесь */
-  [data-n="8"] .cond .figwrap img.fig{width:100%;max-width:520px;}
+  /* ---- ряд рисунков ----
+     Варианты ответа в задании 11 (три графика) и 13 (четыре числовые
+     прямые) шли колонкой: каждый рисунок — отдельный абзац во всю ширину
+     карточки. Выбирать между вариантами надо взглядом, а столбец из трёх
+     графиков заставлял прокручивать условие, чтобы увидеть их все разом.
+     Число колонок не задано вручную: auto-fit делит доступную ширину на
+     полосы шириной с сам рисунок (--fig-w приходит из data.js), поэтому
+     три графика по 250px встают в ряд на десктопе и складываются в
+     колонку на телефоне, а числовые прямые по 480px остаются колонкой
+     везде — сами по себе широкие. min(…,100%) не даёт полосе стать шире
+     карточки на узком экране. */
+  .cond .figrow{display:grid;gap:var(--s4) var(--s5);
+    grid-template-columns:repeat(auto-fit,minmax(min(var(--fig-w,240px),100%),1fr));
+    justify-items:center;align-items:center;margin:var(--s4) 0 var(--s1);}
+  .cond .figrow .figwrap{margin:0;}
   .answer{display:inline-block;background:var(--ok-soft);color:var(--ok-text);font-weight:600;
     padding:5px var(--s3);border-radius:var(--r-sm);margin-bottom:var(--s3);
     font-size:var(--fs-base);font-family:'Golos Text',sans-serif;}
@@ -1951,10 +1967,34 @@ function renderTask(n){
     if(!d.a||/^доказательство/i.test(d.a))return'';
     return revealLnk('sol',id,'Ответ');};
   /* Оценка высоты для content-visibility: постоянная часть карточки плюс
-     зарезервированная высота чертежа. Промах здесь означает прыжки полосы
-     прокрутки, пока ученик листает вниз первый раз. */
-  const figH=id=>{const m=/<img[^>]*class="fig"[^>]*height="(\d+)"/.exec((data&&data[id-1]||{}).c||'');
-    return m?+m[1]:0;};
+     зарезервированная высота чертежей. Промах здесь означает прыжки полосы
+     прокрутки, пока ученик листает вниз первый раз.
+     Одной высотой первого рисунка не обойтись: в задании 13 их четыре
+     колонкой, в 11 — три в ряд, и разница между «одна картинка» и «четыре»
+     как раз и есть те самые прыжки. Ряд считаем так же, как его посчитает
+     CSS: сколько полос шириной с рисунок влезает в условие. */
+  const FIG_GAP=20;
+  const condW=()=>{const vw=Math.min(document.documentElement.clientWidth||1180,1180);
+    return Math.max(200,(vw>760?vw-288:vw-32)-51);};   // минус колонка-панель и поля карточки
+  const figH=id=>{
+    const html=(data&&data[id-1]||{}).c||'';
+    if(html.indexOf('class="fig"')<0)return 0;
+    const cw=condW(),size=/width="(\d+)" height="(\d+)"/;
+    const group=block=>{
+      const list=(block.match(/<img[^>]*class="fig"[^>]*>/g)||[])
+        .map(t=>size.exec(t)).filter(Boolean).map(m=>[+m[1],+m[2]]);
+      if(!list.length)return 0;
+      const w=Math.max(...list.map(f=>f[0])),h=Math.max(...list.map(f=>f[1]));
+      const cols=Math.max(1,Math.min(list.length,Math.floor((cw+FIG_GAP)/(Math.min(w,cw)+FIG_GAP))));
+      const rows=Math.ceil(list.length/cols),k=Math.min(1,cw/w);
+      return rows*h*k+(rows-1)*FIG_GAP+FIG_GAP;};
+    let total=0;
+    const rest=html.replace(/<div class="figrow"[^>]*>[\s\S]*?<\/div>/g,
+      m=>{total+=group(m);return'';});
+    /* Одиночные рисунки идут через текст и в ряд не встают — каждый своей строкой. */
+    (rest.match(/<img[^>]*class="fig"[^>]*>/g)||[]).forEach(t=>{
+      const m=size.exec(t);if(m)total+=Math.min(1,cw/+m[1])*+m[2]+FIG_GAP;});
+    return Math.round(total);};
   const repCard=(id,protoNum,simIds,ord)=>{const st=ts[id],c=st==='g'?'is-g':st==='o'?'is-o':st==='b'?'is-b':'';
     const label=protoNum!=null?`<span class="num proto-num">Прототип ${protoNum}</span>`:`<span class="num">${id}</span>`;
     const hasSim=!!(simIds&&simIds.length);
